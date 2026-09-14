@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MC-kakadu/AIexpose/internal/control"
 	"github.com/MC-kakadu/AIexpose/internal/hashdb"
@@ -616,5 +617,18 @@ func TestReportSaysWhereItSearched(t *testing.T) {
 	}
 	if !strings.Contains(f.Detail, "COMFYUI_PATH") {
 		t.Errorf("an empty inventory does not tell the reader how to widen the search:\n%s", f.Detail)
+	}
+}
+
+// A hand-copied hashdb.bin that arrived without its meta.json has no build
+// date and no source. Claiming it was "built locally" asserts provenance this
+// machine does not have, and for a copied index it is simply false.
+func TestIndexWithNoProvenanceSaysSo(t *testing.T) {
+	if got := builtLabel(hashdb.Meta{}); got != "build date unknown" {
+		t.Errorf("an index with no meta gave %q, want it to admit it does not know", got)
+	}
+	m := hashdb.Meta{Built: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC)}
+	if got := builtLabel(m); got == "build date unknown" {
+		t.Errorf("an index with a real build date gave %q", got)
 	}
 }

@@ -365,9 +365,16 @@ func buildHashDBCommand() string {
 	return selfCommand("--build-hashdb " + dir)
 }
 
+// builtLabel dates the corpus for the report.
+//
+// An index with no meta.json beside it -- which is what a hand-copied
+// hashdb.bin looks like when only one of the two files was carried across --
+// has no build date and no source. Saying "built locally" there would assert
+// provenance this machine does not have and, for a copied index, would be
+// false: it was built somewhere else. The report says it does not know.
 func builtLabel(m hashdb.Meta) string {
 	if m.Built.IsZero() {
-		return "built locally"
+		return "build date unknown"
 	}
 	return "built " + m.Built.Local().Format("2006-01-02")
 }

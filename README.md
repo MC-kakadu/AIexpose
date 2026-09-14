@@ -317,7 +317,7 @@ file. `aiexpose` can also compare every file in your AI stack, byte for byte,
 against a corpus of known malware hashes — with no network involved at any
 point.
 
-There are two ways to get the index, and both are one-offs.
+There are three ways to get the index, and each is a one-off.
 
 **Download the published one** from the
 [releases page](https://github.com/MC-kakadu/AIexpose/releases) — three files:
@@ -341,8 +341,25 @@ but your own:
 aiexpose --build-hashdb ./virusHashDb   # once, about 20 seconds
 ```
 
-Either way the result is one sorted index under `~/.aiexpose/hashdb.bin`; every
-scan from then on uses it automatically.
+**Or copy one you already built**, if you have the index on another machine of
+your own. Carry **both** files across to the same folder on the second machine:
+
+```
+~/.aiexpose/hashdb.bin          the index          (~255 MB)
+~/.aiexpose/hashdb.meta.json    what it is         (a few hundred bytes)
+```
+
+On Windows that folder is `%USERPROFILE%\.aiexpose\`. No command is needed —
+the next scan finds it. `hashdb.meta.json` is small enough to forget and is the
+file that lets the report name the corpus and its build date; without it the
+report says the build date is unknown rather than inventing one.
+
+All three routes end at the same place: one sorted index under
+`~/.aiexpose/hashdb.bin`, which every scan from then on uses automatically.
+
+Only `--install-hashdb` checks a signature, and only because that route starts
+with a file downloaded from somewhere else. An index you built or copied
+yourself is your own decision, the same way `--build-hashdb`'s output is.
 
 > **Why isn't this in the repository?** It is about 255 MB, and GitHub refuses
 > any file over 100 MiB. It cannot honestly be made smaller either: 42 million
