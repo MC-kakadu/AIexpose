@@ -36,7 +36,7 @@ const (
 	lockFileName   = "aiexpose.lock.json"
 
 	toolName = "aiexpose"
-	version  = "0.19.6"
+	version  = "0.19.9"
 )
 
 // pauseChoice is set while flags are parsed, because os.Exit skips defers and
@@ -96,10 +96,12 @@ func run() int {
 		hashAll      = flag.Bool("hash-all", false, "hash every model file against the malware index, including multi-gigabyte weights (slow)")
 		noHashDB     = flag.Bool("no-hashdb", false, "skip matching installed files against the local malware hash index")
 		scanHistory  = flag.Bool("scan-history", false, "also search shell and PowerShell history for API keys (off by default: reading it is what an information stealer does, and endpoint protection blocks unsigned programs that do)")
+		noScanDocs   = flag.Bool("no-scan-docs", false, "never search the document folders, and do not ask")
 		scanDocs     = flag.Bool("scan-docs", false, "also search Desktop, Documents and Downloads for API keys written into notes and text files (off by default for the same reason as --scan-history)")
 		scanDirs     = flag.String("scan-dir", "", "also search these folders for API keys, separated by "+string(os.PathListSeparator)+" (for a work folder or a project directory outside your home folder)")
-		openReport   = flag.Bool("open", false, "open the HTML report when it is written (automatic when launched by double-click)")
-		noOpen       = flag.Bool("no-open", false, "never open the report automatically")
+		openReport   = flag.Bool("open", false, "open the HTML report even when no graphical session is detected (it opens on its own whenever one is)")
+		noOpen       = flag.Bool("no-open", false, "write the HTML report but never open it")
+		noHTML       = flag.Bool("no-html", false, "do not write the HTML report automatically (it is written whenever a person is watching)")
 		safeMode     = flag.Bool("safe-mode", false, "run only checks that start no other programs and touch no credential stores; use this if security software blocks a normal scan")
 		pause        = flag.Bool("pause", false, "wait for Enter before exiting (automatic when launched by double-click)")
 		noPause      = flag.Bool("no-pause", false, "never wait for Enter before exiting")
@@ -192,7 +194,7 @@ func run() int {
 		// Asking is the only way to reach them without reading a person's
 		// documents uninvited.
 		docs := *scanDocs
-		if !docs && canPrompt(pauseForce, pauseDisable) {
+		if !docs && !*noScanDocs && canPrompt(pauseForce, pauseDisable) {
 			docs = confirmScanDocs(os.Stdin, os.Stdout)
 		}
 		checks.Secrets(r, checks.SecretScope{
@@ -247,11 +249,23 @@ func run() int {
 		}
 	}
 
-	// Someone who double-clicked the executable is not going to read a wall of
-	// terminal text, and it scrolls away in a small window. Give them a page
-	// instead, beside the executable where they will find it.
+	// A person watching this run gets the page as well as the text, on every
+	// platform.
+	//
+	// This used to happen only for a Windows double-click, on the reasoning
+	// that the console window vanishes and takes the output with it. That is
+	// true, but it made the product different depending on how it was started:
+	// someone who ran it on Ubuntu got a wall of terminal text and never
+	// learned the report existed. The page is the readable form of this
+	// scan -- the coverage table, the evidence lists and the component
+	// inventory do not fit a terminal -- so withholding it from most users was
+	// the wrong default.
+	//
+	// It is skipped when nobody is watching: output piped to a file or another
+	// program, --json, and CI. Those runs want the data, not a page, and
+	// writing a file they did not ask for would be a change to their machine.
 	autoReport := false
-	if *htmlPath == "" && ownsConsole() {
+	if *htmlPath == "" && !*jsonOut && !*noHTML && (ownsConsole() || stdoutIsTerminal()) {
 		*htmlPath = defaultReportPath()
 		autoReport = true
 	}
@@ -533,17 +547,38 @@ func runFeedUpdate(url string) int {
 //
 // Only when someone double-clicked, or said --open. A scan run from a shell,
 // from a scheduled task or in CI must not throw a browser window at anyone.
+// shouldOpenReport decides whether to show the page as well as name it.
+//
+// Anyone waiting at a terminal gets it opened, not only a Windows double-click.
+// The page is the readable form of the scan and telling someone a file exists
+// is a weaker thing than showing it to them.
+//
+// browse.Available() keeps that from becoming a nuisance: safe mode starts no
+// programs, and a session with no graphical desktop -- a server over SSH -- has
+// nothing to open into, where xdg-open can hand the file to a terminal browser
+// and take over the window the person is reading. Those runs get the path
+// printed instead. --open forces it anyway, for an X11-forwarded session this
+// cannot detect.
 func shouldOpenReport(force, disable bool) bool {
 	if disable {
 		return false
 	}
-	return force || ownsConsole()
+	if force {
+		return true
+	}
+	return (ownsConsole() || stdoutIsTerminal()) && browse.Available()
 }
 
-// defaultReportPath puts the report next to the executable, falling back to the
-// temp directory when that location is read-only.
-// defaultReportPath is where a double-clicked scan leaves its report: beside
-// the executable, which is where the person will look for it.
+// defaultReportPath is where a scan leaves its report when the user did not
+// name one: the directory they are standing in.
+//
+// It used to be the directory holding the executable, which is right for the
+// Windows case it was written for -- unzip a folder, double-click, the report
+// appears beside it -- and wrong everywhere else. A binary installed with
+// "go install" lives in ~/go/bin, and nobody looks there for a report. The
+// working directory is where a terminal user already is, and for a
+// double-click it is the executable's folder anyway, because that is what
+// Explorer sets it to.
 //
 // It used to confirm the folder was writable by creating a hidden file and
 // deleting it again. That is a bad thing to do in a folder Windows protects:
@@ -553,12 +588,14 @@ func shouldOpenReport(force, disable bool) bool {
 // reaches the same answer without ever touching a file we do not mean to
 // leave behind.
 func defaultReportPath() string {
-	name := "aiexpose-report.html"
-	exe, err := os.Executable()
-	if err != nil {
-		return filepath.Join(os.TempDir(), name)
+	const name = "aiexpose-report.html"
+	if wd, err := os.Getwd(); err == nil {
+		return filepath.Join(wd, name)
 	}
-	return filepath.Join(filepath.Dir(exe), name)
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(exe), name)
+	}
+	return filepath.Join(os.TempDir(), name)
 }
 
 // fallbackReportPath is where the report goes when the folder beside the
@@ -618,13 +655,14 @@ Flags:
 	fmt.Fprintf(os.Stderr, `
 Examples:
   %s                          scan and print the result
-  %s --html report.html       also write a shareable HTML report
+  %s --html report.html       write the page to a path you choose
+  %s --no-html                do not write the page at all
   %s --fail-on high           exit 1 if anything high or critical is found
   %s --accept                 accept the current components as known-good
   %s --scan-history           also search shell history for leaked API keys
   %s --scan-docs              also search Desktop, Documents and Downloads for keys in notes
   %s --scan-dir PATH          also search a work or project folder for keys
-  %s --open                   open the HTML report when it is written
+  %s --no-open                write the page but do not open it
   %s --safe-mode              skip everything security software tends to block
   %s --install-rules FILE     install detection rules from a signed file
   %s --aibom bom.cdx.json     write a CycloneDX AI bill of materials
@@ -634,7 +672,7 @@ Examples:
 
 aiexpose reads. It never changes this machine: every finding names the exact
 step that resolves it, and you run it.
-`, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName)
+`, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName)
 }
 
 // splitPaths turns the --scan-dir value into folders. The platform's own list

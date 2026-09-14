@@ -90,11 +90,24 @@ chmod +x aiexpose
 .\aiexpose.exe
 ```
 
+**Every run that a person is watching writes a page and opens it.** The terminal
+output is a summary; `aiexpose-report.html` lands in the directory you ran from
+and carries the parts that do not fit a terminal — the full evidence lists, the
+component inventory, and the risk coverage table.
+
+`--no-html` skips writing it and `--no-open` writes it without opening. Both
+happen automatically when nobody is there to read the page: output piped or
+redirected, `--json`, and CI. The browser is also left alone in `--safe-mode`,
+which promises to start no other programs, and on a machine with no graphical
+session — a server over SSH, where `xdg-open` can hand the file to a terminal
+browser and take over the window you are reading in. Those runs print the path.
+`--open` forces it anyway, for an X11-forwarded session this cannot detect.
+
 **On Windows, double-clicking works.** The executable notices it was launched
-from Explorer, saves `aiexpose-report.html` beside itself, opens it in your
-browser and holds the console window open so you can read the summary too. Use
-`--no-open` if you would rather it did not. If the window still closes too
-quickly on your machine, run `run-aiexpose.bat` instead.
+from Explorer, opens that page in your browser, and holds the console window
+open so you can read the summary too. Use `--no-open` if you would rather it
+did not. If the window still closes too quickly on your machine, run
+`run-aiexpose.bat` instead.
 
 ### Installing the rules
 
@@ -237,8 +250,13 @@ NOT RUN   Your document folders were not searched for API keys
    run -> aiexpose --scan-docs
 ```
 
-That is the same reason shell history needs `--scan-history`. On a double-click
-run the question is asked in the window instead, and the answer defaults to no.
+That is the same reason shell history needs `--scan-history`.
+
+**Any run with a person at the keyboard is asked instead**, on every platform
+and whether you double-clicked or typed the command. The answer defaults to no.
+`--scan-docs` answers yes without the question, `--no-scan-docs` answers no, and
+a script or a pipeline is never asked at all — there is nobody there to answer,
+and a scan that blocks waiting for one is broken.
 
 Checks that did not run are printed in their own section, after the ones that
 did, and never counted as passes — in the report and in the terminal both.
@@ -577,7 +595,8 @@ be absurd for it to upload anything, so it does not.
 ```
 aiexpose [flags]
 
-  --html PATH        write a self-contained HTML report
+  --html PATH        write the HTML report to this path
+  --no-html          do not write the HTML report automatically
   --json             print the report as JSON
   --json-out PATH    write the JSON report to a file
   --verbose          include informational checks that passed
@@ -587,7 +606,8 @@ aiexpose [flags]
   --no-models        skip the model file inventory
   --no-supply        skip the supply chain inventory and drift check
   --scan-history     also search shell and PowerShell history for API keys
-  --scan-docs        also search Desktop, Documents and Downloads for keys in notes
+  --scan-docs        search Desktop, Documents and Downloads without asking
+  --no-scan-docs     do not search them, and do not ask
   --scan-dir PATHS   also search these folders (separated by : or ;)
   --baseline PATH    where the accepted state lives (default ~/.aiexpose/baseline.json)
   --accept           record the current components as the new known-good baseline
@@ -605,8 +625,8 @@ aiexpose [flags]
   --verify PATH      check this binary against a published SHA256SUMS file
   --safe-mode        start no other programs and touch no credential store
   --color/--no-color force colour on or off
-  --open             open the HTML report when it is written (automatic on double-click)
-  --no-open          never open it automatically
+  --open             open the page even where no graphical session is detected
+  --no-open          write the page but never open it
   --pause            wait for Enter before exiting (automatic on double-click)
   --no-pause         never wait
 

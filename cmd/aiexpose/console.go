@@ -18,13 +18,24 @@ import (
 func ownsConsole() bool { return consoleIsOurs() }
 
 // canPrompt reports whether there is a person at this window who can answer a
-// question. Double-clicking is the case that matters; --pause says so
-// explicitly, which is also how this path gets exercised from a shell.
-func canPrompt(force, disable bool) bool {
-	if disable || !stdinIsTerminal() || !stdoutIsTerminal() {
+// question.
+//
+// It used to require a Windows double-click, on the same reasoning that once
+// withheld the HTML report from everyone else. The effect was that the same
+// tool, on the same machine, covered different ground depending on how it was
+// started: a double-click was asked whether to search the document folders and
+// a terminal run never was, so the terminal user's report said "no plaintext
+// keys found" having looked in far fewer places. Nothing about a terminal
+// makes its user less interested in the answer.
+//
+// Both stdin and stdout must be terminals, so a script, a pipe, a redirect and
+// CI still never see a prompt -- there is nobody there to answer, and a
+// program that blocks waiting for one is broken.
+func canPrompt(_, disable bool) bool {
+	if disable {
 		return false
 	}
-	return force || ownsConsole()
+	return stdinIsTerminal() && stdoutIsTerminal()
 }
 
 func stdinIsTerminal() bool {
