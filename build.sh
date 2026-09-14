@@ -18,7 +18,7 @@
 #     proves it.
 set -euo pipefail
 
-VERSION="${VERSION:-0.19.9}"
+VERSION="${VERSION:-0.20.0}"
 OUT="${OUT:-dist}"
 TAGS="${TAGS:-}"
 # The offline binaries carry a distinct filename. They differ from the default

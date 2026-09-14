@@ -1,7 +1,10 @@
 package checks
 
 import (
+	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/MC-kakadu/AIexpose/internal/advice"
@@ -29,6 +32,20 @@ func Firewall(r *model.Report, services []model.Service) {
 	}
 
 	switch {
+	case !st.Known && needsRoot():
+		// "could not be determined" with no way forward is a dead end. On Unix
+		// every firewall backend needs root to read its rules, and the reader
+		// can do something about that -- so say what.
+		r.Add(model.Finding{
+			ID:       "FW-003",
+			Title:    "Host firewall state could not be read",
+			Severity: model.Info,
+			NotRun:   true,
+			Detail: st.Detail + "\nEvery way to read it -- ufw, firewalld, nftables, iptables -- needs root. " +
+				"Without it this scan cannot tell an enabled firewall from an absent one, so it reports neither.",
+			Fix:     "Re-run with root so the rules are readable:",
+			Command: strings.TrimSpace("sudo " + selfCommand("")),
+		})
 	case !st.Known:
 		if !subproc.Allowed {
 			// Saying "usually needs root" here would blame the wrong thing:
@@ -84,4 +101,11 @@ func cmdOut(name string, args ...string) (string, bool) {
 		}
 		return "", false
 	}
+}
+
+// needsRoot reports whether an unreadable firewall is explained by privileges.
+// On Windows the state comes from the registry and a normal user can read it,
+// so an unknown result there is a real gap rather than a missing sudo.
+func needsRoot() bool {
+	return runtime.GOOS != "windows" && os.Geteuid() != 0
 }

@@ -17,7 +17,18 @@ func HTML(w io.Writer, r *model.Report) error {
 
 var htmlTmpl = template.Must(template.New("report").Funcs(template.FuncMap{
 	"lower":          strings.ToLower,
-	"lines":          func(s string) []string { return strings.Split(strings.TrimRight(s, "\n"), "\n") },
+	// lines splits a detail into paragraphs. Blank ones are dropped: a detail
+	// built by joining sentences with "\n\n" for the terminal rendered an
+	// empty <p></p> in the page, which shows up as a stray gap.
+	"lines": func(s string) []string {
+		var out []string
+		for _, l := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+			if strings.TrimSpace(l) != "" {
+				out = append(out, l)
+			}
+		}
+		return out
+	},
 	"count":          func(r *model.Report, sev string) int { return r.Counts()[sev] },
 	"hasPrefixSpace": func(s string) bool { return strings.HasPrefix(s, "  ") },
 	"covBadge":       covBadge,
@@ -240,8 +251,12 @@ tr.flagged td{background:color-mix(in srgb,var(--crit) 7%,transparent)}
   <span class="pill" style="color:var(--info)">{{count . "INFO"}} info</span>
 </div>
 
-{{if .Services}}
 <h2>Discovered services</h2>
+{{if not .Services}}
+<p class="covlegend">No AI service was listening when this scan ran. That is the result of the
+check, not the absence of one &mdash; every port this tool recognises was looked at.{{if .ServiceScopeNote}}
+{{.ServiceScopeNote}}{{end}}</p>
+{{else}}
 <table><thead><tr><th>Service</th><th>Bound to</th><th>Exposure</th><th>Process</th></tr></thead><tbody>
 {{range .Services}}<tr>
   <td><b>{{.Name}}</b>{{if not .Confirmed}} <span style="color:var(--muted);font-size:11px">(unconfirmed)</span>{{end}}</td>

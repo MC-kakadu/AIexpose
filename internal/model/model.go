@@ -235,6 +235,11 @@ type Report struct {
 	// after Finalize, from the findings themselves.
 	Coverage []ControlCoverage `json:"coverage,omitempty"`
 
+	// ServiceScopeNote qualifies an empty service list. On Unix without root
+	// the sockets of other users are invisible, so "nothing listening" means
+	// less there than it does on Windows, and the page has to say which it is.
+	ServiceScopeNote string `json:"service_scope_note,omitempty"`
+
 	// Components is the AI stack inventory this scan fingerprinted.
 	Components []Component `json:"components,omitempty"`
 

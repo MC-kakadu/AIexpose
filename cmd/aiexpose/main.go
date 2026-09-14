@@ -36,7 +36,7 @@ const (
 	lockFileName   = "aiexpose.lock.json"
 
 	toolName = "aiexpose"
-	version  = "0.19.9"
+	version  = "0.20.0"
 )
 
 // pauseChoice is set while flags are parsed, because os.Exit skips defers and
@@ -175,6 +175,15 @@ func run() int {
 
 	services := probe.Identify(listeners)
 	r.Services = services
+
+	// An empty service list means different things on different machines, and
+	// the page has to say which. On Unix a scan without root sees only its own
+	// user's sockets, so "nothing listening" there is a narrower statement than
+	// the same words on Windows.
+	if len(services) == 0 && runtime.GOOS != "windows" && os.Geteuid() != 0 {
+		r.ServiceScopeNote = "This scan ran without root, so sockets owned by other users were not visible. " +
+			"Re-run with sudo to cover a service started by another account or by systemd."
+	}
 
 	checks.Exposure(r, services)
 	checks.LaunchFlags(r, services)
