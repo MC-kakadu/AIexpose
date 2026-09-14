@@ -48,6 +48,18 @@ func verifySelf(sumsPath string) int {
 	}
 	f, err := os.Open(sumsPath)
 	if err != nil {
+		// A bare "no such file" sends the reader looking for a bug. The far
+		// more likely situation is that they built this binary themselves, in
+		// which case there is nothing to verify it against and nothing wrong:
+		// SHA256SUMS is published with a release, not kept in the repository.
+		if os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "aiexpose: %s was not found.\n\n", sumsPath)
+			fmt.Fprintf(os.Stderr, "It is published with each release, next to the binaries. "+
+				"A binary you built\nfrom source has nothing to compare against -- you already know where it "+
+				"came\nfrom, which is the stronger guarantee. Its own digest is:\n\n  sha256 %s\n\n", digest)
+			fmt.Fprintf(os.Stderr, "To reproduce a published release and compare instead:\n  ./build.sh --check-reproducible\n")
+			return 2
+		}
 		fmt.Fprintln(os.Stderr, "aiexpose:", err)
 		return 2
 	}

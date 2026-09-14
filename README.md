@@ -69,7 +69,11 @@ The signed rule file is in the tree you just built from. A release calls the
 same file `aiexpose-rules.json`; the repository keeps it under its own name.
 
 **From a release:** download the binary for your platform, verify it, install
-the rules once, and run it.
+the rules once, and run it. A release carries `SHA256SUMS` and
+`aiexpose-rules.json` beside the binaries; neither is kept in the repository,
+because one is a checksum of files that do not exist until a release is built
+and the other is the same signed document the tree already holds at
+`internal/feed/data/feed.json`.
 
 ```bash
 # macOS / Linux

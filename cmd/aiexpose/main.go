@@ -36,7 +36,7 @@ const (
 	lockFileName   = "aiexpose.lock.json"
 
 	toolName = "aiexpose"
-	version  = "0.19.5"
+	version  = "0.19.6"
 )
 
 // pauseChoice is set while flags are parsed, because os.Exit skips defers and

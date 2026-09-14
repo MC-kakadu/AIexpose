@@ -1,0 +1,267 @@
+{
+  "version": "2026.09.14.1",
+  "updated": "2026-09-14T00:00:00Z",
+  "source": "https://example.invalid/aiexpose/feed/v1/feed.json",
+  "entries": [
+    {
+      "id": "AIX-2025-0001",
+      "kind": "package",
+      "match": "postmark-mcp",
+      "severity": "critical",
+      "title": "postmark-mcp was backdoored after months of legitimate use",
+      "detail": "An MCP server published on npm behaved normally long enough to gain real users, then shipped a version that silently copied every email it sent to an address controlled by its author. It had roughly 1,500 weekly downloads and around 300 organisations had already integrated it when the change was found. The package has been removed from npm, so any local copy is a version that should not be trusted.",
+      "reference": "https://www.koi.security/blog/postmark-mcp-npm-malicious-backdoor-email-theft",
+      "added": "2025-09-26"
+    },
+    {
+      "id": "AIX-2024-0002",
+      "kind": "node-name",
+      "match": "ComfyUI_LLMVISION",
+      "severity": "critical",
+      "title": "ComfyUI_LLMVISION is an information stealer disguised as a workflow node",
+      "detail": "Distributed through community channels as a helpful extension, it hid its payload inside fake OpenAI and Anthropic installation files. Once loaded it collected browser-saved passwords, credit card details, browsing history, clipboard contents, screenshots and cryptocurrency wallets, and sent them to a Discord webhook. If this is installed, treat every credential reachable from the machine as compromised.",
+      "reference": "https://www.vpnmentor.com/news/comfyui-malicious-custom-node/",
+      "added": "2024-06-09"
+    },
+    {
+      "id": "AIX-2026-0003",
+      "kind": "package",
+      "match": "easy-day-js",
+      "severity": "critical",
+      "title": "easy-day-js is a typosquat used to backdoor Mastra packages",
+      "detail": "A typosquatted dependency that was pulled into the build of more than 140 npm packages in the Mastra ecosystem, backdooring each of them. The name exists only to be mistaken for a legitimate date library.",
+      "reference": "https://www.stepsecurity.io/blog/mastra-npm-packages-compromised-using-easy-day-js",
+      "added": "2026-03-01"
+    }
+  ],
+  "indicators": [
+    {
+      "id": "EXFIL-DISCORD",
+      "title": "Posts data to a Discord webhook",
+      "severity": "critical",
+      "pattern": "https?://(?:ptb\\.|canary\\.)?discord(?:app)?\\.com/api/webhooks/"
+    },
+    {
+      "id": "EXFIL-TELEGRAM",
+      "title": "Posts data to a Telegram bot",
+      "severity": "critical",
+      "pattern": "https?://api\\.telegram\\.org/bot"
+    },
+    {
+      "id": "EXFIL-PASTE",
+      "title": "Uploads data to an anonymous file or paste service",
+      "severity": "critical",
+      "pattern": "https?://(?:[a-z0-9-]+\\.)?(?:pastebin\\.com/api|anonfiles\\.com|transfer\\.sh|file\\.io|gofile\\.io|0x0\\.st|termbin\\.com)"
+    },
+    {
+      "id": "EXFIL-TUNNEL",
+      "title": "Opens an inbound tunnel to this machine",
+      "severity": "high",
+      "pattern": "\\b(?:ngrok|localtunnel|trycloudflare|serveo\\.net|pinggy\\.io)\\b"
+    },
+    {
+      "id": "STEAL-BROWSER",
+      "title": "Reads a browser credential or cookie store",
+      "severity": "critical",
+      "pattern": "(?i)(?:Google[\\\\/]Chrome|Microsoft[\\\\/]Edge|BraveSoftware|Mozilla[\\\\/]Firefox|Chromium|Vivaldi|Opera\\s?Software)[\\\\/](?:[^\"'\\n\\\\/]{1,40}[\\\\/])?(?:User\\s?Data|Profiles)|[\"'][^\"'\\n]{0,80}[\\\\/](?:Cookies|Local\\s?State)[\"']|[\"'](?:[^\"'\\n]{0,80}[\\\\/])?(?:Login\\s?Data|Web\\s?Data|key4\\.db|logins\\.json|cookies\\.sqlite|signons\\.sqlite)[\"']|\\bbrowser_cookie3\\b|\\bCryptUnprotectData\\b"
+    },
+    {
+      "id": "STEAL-WALLET",
+      "title": "Reads cryptocurrency wallet files",
+      "severity": "critical",
+      "pattern": "(?i)\\b(?:wallet\\.dat|Ethereum[\\\\/]keystore|Exodus[\\\\/]exodus\\.wallet|Electrum[\\\\/]wallets|MetaMask)\\b"
+    },
+    {
+      "id": "STEAL-SSH",
+      "title": "Reads SSH or cloud credential files",
+      "severity": "high",
+      "pattern": "(?:\\.ssh[\\\\/]id_(?:rsa|ed25519)|\\.aws[\\\\/]credentials|\\.config[\\\\/]gcloud[\\\\/]credentials)"
+    },
+    {
+      "id": "OBF-EXEC",
+      "title": "Executes a decoded or decompressed payload",
+      "severity": "critical",
+      "pattern": "(?:exec|eval)\\s*\\(\\s*(?:__import__\\s*\\(\\s*['\\\"]base64|base64\\.b64decode|codecs\\.decode|zlib\\.decompress|marshal\\.loads|bytes\\.fromhex)"
+    },
+    {
+      "id": "OBF-PWSH",
+      "title": "Runs an encoded PowerShell command",
+      "severity": "critical",
+      "pattern": "(?i)powershell[^\\n]{0,80}(?:-enc\\b|-encodedcommand|-w\\s+hidden|-windowstyle\\s+hidden)"
+    },
+    {
+      "id": "NET-PIPE",
+      "title": "Pipes a downloaded script straight into a shell",
+      "severity": "high",
+      "pattern": "(?:curl|wget)[^\\n|]{0,120}\\|\\s*(?:ba)?sh\\b"
+    },
+    {
+      "id": "PERSIST",
+      "title": "Installs itself for automatic startup",
+      "severity": "high",
+      "pattern": "(?i)(?:CurrentVersion\\\\\\\\Run|crontab\\s+-|LaunchAgents[\\\\/][^\\n]+\\.plist|systemctl\\s+enable)"
+    }
+  ],
+  "credentials": {
+    "patterns": [
+      {
+        "id": "anthropic",
+        "vendor": "Anthropic",
+        "pattern": "sk-ant-(?:api|admin)[0-9]{2}-[A-Za-z0-9_\\-]{40,}"
+      },
+      {
+        "id": "openrouter",
+        "vendor": "OpenRouter",
+        "pattern": "sk-or-v1-[A-Za-z0-9]{32,}"
+      },
+      {
+        "id": "openai",
+        "vendor": "OpenAI",
+        "pattern": "sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\\-]{40,}|sk-[A-Za-z0-9]{32,}"
+      },
+      {
+        "id": "huggingface",
+        "vendor": "Hugging Face",
+        "pattern": "hf_[A-Za-z0-9]{30,}"
+      },
+      {
+        "id": "aws",
+        "vendor": "AWS",
+        "pattern": "AKIA[0-9A-Z]{16}"
+      },
+      {
+        "id": "google",
+        "vendor": "Google",
+        "pattern": "AIza[0-9A-Za-z_\\-]{35}"
+      },
+      {
+        "id": "github",
+        "vendor": "GitHub",
+        "pattern": "gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,}"
+      },
+      {
+        "id": "groq",
+        "vendor": "Groq",
+        "pattern": "gsk_[A-Za-z0-9]{40,}"
+      },
+      {
+        "id": "replicate",
+        "vendor": "Replicate",
+        "pattern": "r8_[A-Za-z0-9]{30,}"
+      },
+      {
+        "id": "slack",
+        "vendor": "Slack",
+        "pattern": "xox[baprs]-[A-Za-z0-9]{8,}-[A-Za-z0-9\\-]{16,}"
+      }
+    ],
+    "history_files": [
+      ".bash_history",
+      ".zsh_history",
+      ".sh_history",
+      ".local/share/fish/fish_history",
+      "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt"
+    ],
+    "config_files": [
+      ".bashrc",
+      ".bash_profile",
+      ".zshrc",
+      ".zprofile",
+      ".profile",
+      ".env",
+      ".config/fish/config.fish",
+      ".continue/config.json",
+      ".aider.conf.yml",
+      ".config/io.datasette.llm/keys.json",
+      "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+      "Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1"
+    ],
+    "search_dirs": [
+      "ComfyUI",
+      "comfyui",
+      "ComfyUI_windows_portable",
+      "stable-diffusion-webui",
+      "sd-webui",
+      "text-generation-webui",
+      "open-webui",
+      "AnythingLLM",
+      ".n8n",
+      ".flowise",
+      ".jan",
+      ".lmstudio",
+      "Jan",
+      "jan",
+      ".ollama",
+      ".continue",
+      ".aider",
+      ".cursor",
+      "mcp",
+      "MCP",
+      ".claude",
+      "AppData/Local/Programs/@comfyorgcomfyui-electron"
+    ],
+    "search_names": [
+      ".env",
+      ".env.local",
+      "config.json",
+      "extra_model_paths.yaml"
+    ],
+    "search_exts": [
+      ".txt",
+      ".md",
+      ".markdown",
+      ".json",
+      ".yaml",
+      ".yml",
+      ".ini",
+      ".cfg",
+      ".conf",
+      ".toml",
+      ".properties",
+      ".csv",
+      ".log",
+      ".bat",
+      ".cmd",
+      ".ps1",
+      ".sh",
+      ".rst",
+      ".text"
+    ],
+    "doc_dirs": [
+      "Desktop",
+      "Documents",
+      "Downloads",
+      "바탕 화면",
+      "문서",
+      "다운로드"
+    ],
+    "skip_dirs": [
+      "node_modules",
+      ".venv",
+      "venv",
+      "env",
+      "__pycache__",
+      "site-packages",
+      "dist-packages",
+      ".cache",
+      "AppData",
+      "Library",
+      ".Trash",
+      "$RECYCLE.BIN",
+      "models",
+      "checkpoints",
+      "weights",
+      "output",
+      "outputs",
+      "input",
+      "temp",
+      "tmp",
+      ".next",
+      "build",
+      "target",
+      "vendor",
+      ".terraform",
+      "Application Data"
+    ]
+  }
+}
