@@ -1,0 +1,45 @@
+# Gate the AI components this repository ships.
+#
+# Findings appear on the changed lines of a pull request through code scanning,
+# and the job fails when the policy in .aiexpose.json says it should.
+name: aiexpose
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write   # required to upload the SARIF results
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build aiexpose
+        run: go build -o aiexpose ./cmd/aiexpose
+
+      # Optional: pick up known-bad components published since this release.
+      # Remove it to keep the job fully offline.
+      - name: Refresh the known-bad list
+        continue-on-error: true
+        run: ./aiexpose --update-feed
+
+      - name: Run the gate
+        id: gate
+        run: ./aiexpose ci --sarif aiexpose.sarif
+
+      # Upload even when the gate failed, so the findings are visible on the PR.
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: aiexpose.sarif
+          category: aiexpose

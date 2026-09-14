@@ -1,0 +1,41 @@
+# Build output. Releases are attached to a GitHub release, not committed.
+dist/
+dist-minimal/
+dist-offline/
+
+# Note the leading slash on each of these. Without it, "aiexpose" matches any
+# file OR DIRECTORY of that name at any depth -- including cmd/aiexpose/, the
+# main package. That pattern silently excluded the whole program from the
+# repository, which would have published a tree that does not build. It is the
+# same mistake as the blanket *.json rule below it.
+/aiexpose
+/aiexpose.exe
+/aiexpose_*_darwin_*
+/aiexpose_*_linux_*
+/aiexpose_*_windows_*.exe
+
+# Reports a scan wrote while testing. Note the narrow patterns: a blanket
+# *.json rule once excluded internal/feed/data/feed.json, which is the signed
+# rule document the bundled build embeds -- a clone would not have built.
+aiexpose-report.html
+aiexpose-report.json
+bom.cdx.json
+*.sarif
+
+# The feed signing key never belongs in the repository.
+*.PRIVATE.txt
+feed-signing-key*
+
+# Malware hash lists are the user's own multi-gigabyte download, not source.
+virusHashDb/
+*.md5
+*.md5.txt
+hashdb.bin
+
+# Local scan state.
+.aiexpose/
+
+# Internal development and business status notes. Kept out of the public
+# repository on purpose: the public-facing version of this information is the
+# README's "Known limits" and "Roadmap" sections.
+STATUS.md

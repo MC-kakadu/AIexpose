@@ -1,0 +1,102 @@
+# The project's own checks.
+#
+# This runs the test suite. The other workflow in this folder, aiexpose.yml,
+# is the example gate that users copy into their own repositories; it inspects
+# AI components and this repository has none, so it proves nothing about
+# whether the code works. A green tick that means nothing is worse than no
+# tick, and this project has fixed that shape of bug in its own output more
+# than once.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      # Every platform has its own netstat, firewall and process backend, so a
+      # pass on Linux alone says little about the two thirds of users who are
+      # not on it.
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      # The offline profile embeds the signed rule document. It is a separate
+      # build tag, so it can break without the default build noticing.
+      - name: Test the offline profile
+        run: go test -tags bundled ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+
+      # A tool that warns about supply chain risk must not add one. This fails
+      # the moment a third-party module appears in the graph.
+      - name: No third-party dependencies
+        run: |
+          mod=$(go list -m)
+          # Anything with a dot in its first path element is a remote module.
+          # The module's own packages match that too, so they are excluded by
+          # name rather than by pattern.
+          deps=$(go list -deps ./... | grep -E '^[^/]+\.[^/]+/' | grep -v "^$mod\(/\|$\)" || true)
+          if [ -n "$deps" ]; then
+            echo "Third-party dependencies found:"
+            echo "$deps"
+            exit 1
+          fi
+          echo "Dependency graph is the standard library and this module only."
+
+  reproducible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      # A release that cannot be rebuilt byte for byte cannot be verified by
+      # the people downloading it, which is the whole basis of --verify.
+      - name: Builds are reproducible
+        run: ./build.sh --check-reproducible
