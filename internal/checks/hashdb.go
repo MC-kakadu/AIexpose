@@ -329,20 +329,34 @@ func reportNoIndex(r *model.Report, err error) {
 		Severity: model.Info,
 		NotRun:   true,
 		Detail: "This scan can compare every file in your AI stack against a corpus of known malware " +
-			"hashes, entirely offline. No index has been built, so it did not.\n\n" +
-			"To use it, download the MD5 lists from VirusShare.com, put them in a folder, and build the " +
-			"index once. It takes about a minute and produces a single file of roughly 255 MB in " +
-			hashdb.DefaultPath() + ". Scans after that read it directly; nothing is sent anywhere.\n\n" +
+			"hashes, entirely offline. No index is installed, so it did not.\n\n" +
+			"There are two ways to get one, and either is a one-off.\n\n" +
+			"The quicker way: download aiexpose-hashdb.bin and the two small files published beside it " +
+			"from the project's releases page, then run the command below. The signature and digest are " +
+			"checked before anything is installed, so an altered index is refused rather than trusted. " +
+			"The download is roughly 255 MB.\n\n" +
+			"The independent way: download the MD5 lists from VirusShare.com yourself, put them in a " +
+			"folder, and build the index with --build-hashdb. It takes about a minute, reads about " +
+			"1.5 GB and trusts nobody's copy but your own.\n\n" +
+			"Either way the result is one file of roughly 255 MB in " + hashdb.DefaultPath() +
+			". Scans after that read it directly; nothing is sent anywhere.\n\n" +
 			"Worth knowing before you spend the disk: that corpus is general malware, mostly Windows " +
 			"executables. It catches a commodity stealer that ended up in an AI tool's folder. It does " +
 			"not catch a backdoored MCP package or a malicious ComfyUI node -- those are Python source, " +
 			"and the known-bad list and source inspection in this report are what cover them.",
-		Fix:     "Build the index once from a folder of VirusShare .md5 files:",
-		Command: buildHashDBCommand(),
+		Fix:     "Install a downloaded index (or use --build-hashdb to build your own):",
+		Command: installHashDBCommand(),
 	})
 }
 
-// buildHashDBCommand is the one-off that installs the corpus.
+// installHashDBCommand is the one-off that verifies and installs a downloaded
+// corpus. It names the file the releases page publishes, so the reader can
+// match what they downloaded against what the command expects.
+func installHashDBCommand() string {
+	return selfCommand("--install-hashdb aiexpose-hashdb.bin")
+}
+
+// buildHashDBCommand is the one-off that builds the corpus from source lists.
 func buildHashDBCommand() string {
 	dir := "./virusHashDb"
 	if runtime.GOOS == "windows" {

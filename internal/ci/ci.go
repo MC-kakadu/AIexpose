@@ -301,8 +301,17 @@ func feedViolations(pol policy.Policy, inv supply.Inventory, feedPath string) ([
 	var out []Violation
 	for _, h := range f.Match(components) {
 		s := policy.Subject{Component: h.Component.Name, Package: h.Component.Package, Path: h.Component.Path}
+
+		// A hit whose version could not be compared is a question, not a
+		// verdict. Failing a build on it would be asserting the half that was
+		// never established -- and silently dropping it would be asserting the
+		// other half just as hard, so it is reported and titled as open.
+		title := h.Entry.Title
+		if h.Unresolved {
+			title = "Cannot tell whether " + h.Component.Name + " is an affected version of " + h.Entry.Match
+		}
 		v, ok := add(pol, policy.KnownBad, s, Violation{
-			Title:  h.Entry.Title,
+			Title:  title,
 			Detail: h.Entry.Detail + "\nMatched because " + h.Why + ".\nList entry: " + h.Entry.ID,
 			Path:   h.Component.Path, Ref: h.Entry.Ref,
 		})

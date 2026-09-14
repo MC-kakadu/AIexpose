@@ -16,7 +16,7 @@ func HTML(w io.Writer, r *model.Report) error {
 }
 
 var htmlTmpl = template.Must(template.New("report").Funcs(template.FuncMap{
-	"lower":          strings.ToLower,
+	"lower": strings.ToLower,
 	// lines splits a detail into paragraphs. Blank ones are dropped: a detail
 	// built by joining sentences with "\n\n" for the terminal rendered an
 	// empty <p></p> in the page, which shows up as a stray gap.

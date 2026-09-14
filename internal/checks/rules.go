@@ -96,5 +96,44 @@ func LoadRules(r *model.Report, feedPath string, disabled bool) RulesLoaded {
 	if loaded.Indicators == 0 && loaded.Credentials == 0 {
 		noRules(r, "This build ships without them ("+f.Origin+").")
 	}
+	staleRuleFile(r, f)
 	return loaded
+}
+
+// staleRuleFile reports a rule file older than the one this build was
+// published with.
+//
+// This exists because of a failure that produced no error anywhere. A release
+// shipped with fourteen known-bad entries; the machine still had the previous
+// release's three-entry rule file sitting beside the binary. It verified
+// against the compiled-in key, so it loaded, and the report said "No installed
+// component appears on the known-bad list (3 entries)" -- signed, correct, and
+// eleven entries short of what that binary was published with. A signature
+// proves who wrote a file, never that it is the current one.
+//
+// It is Advisory: the reader's machine is not more exposed because their rule
+// file is old, so the grade does not move, but the report is not complete
+// either and must not be read as though it were.
+func staleRuleFile(r *model.Report, f feed.Feed) {
+	behind, have, want := f.BehindRelease()
+	if !behind {
+		return
+	}
+	r.Add(model.Finding{
+		ID:       "RULE-002",
+		Title:    "The detection rules are older than this release",
+		Severity: model.Low,
+		Advisory: true,
+		Detail: "This scan used rule version " + have + ", but this build of aiexpose was published " +
+			"alongside version " + want + ". Everything the older rules describe was checked; whatever " +
+			"was added since was not, so anything found -- and anything not found -- reflects the older " +
+			"list.\n\n" +
+			"The usual cause is an aiexpose-rules.json left beside the binary from a previous download. " +
+			"It still carries a valid signature, which is why nothing complained: a signature says who " +
+			"wrote a file, not whether it is the current one.\n" +
+			"Loaded from: " + f.Origin + ".",
+		Fix: "Replace the rule file beside the binary with the one published for this release, or " +
+			"fetch the newest rules directly:",
+		Command: selfCommand("--update-feed"),
+	})
 }

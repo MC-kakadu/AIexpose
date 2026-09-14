@@ -39,10 +39,17 @@ const (
 
 // Entry is one known-bad component.
 type Entry struct {
-	ID       string   `json:"id"`
-	Kind     Kind     `json:"kind"`
-	Match    string   `json:"match"`
-	Versions []string `json:"versions,omitempty"` // empty means every version
+	ID    string `json:"id"`
+	Kind  Kind   `json:"kind"`
+	Match string `json:"match"`
+	// Versions lists exact affected releases. Ranges expresses the same thing
+	// the way advisories usually state it, with an introduced and a fixed
+	// bound. Both empty means every published version is affected, which is
+	// correct for a package that was removed from its registry rather than
+	// patched -- and wrong, dangerously, for a legitimate package that was
+	// briefly hijacked. See Validate.
+	Versions []string `json:"versions,omitempty"`
+	Ranges   []Range  `json:"version_ranges,omitempty"`
 	Severity string   `json:"severity"`
 	Title    string   `json:"title"`
 	Detail   string   `json:"detail,omitempty"`

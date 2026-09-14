@@ -147,8 +147,43 @@ func reportKnownBad(r *model.Report, inv supply.Inventory, feedPath string) {
 			Package: a.Detail["package"], Version: a.Detail["package_version"],
 		})
 	}
+	reportFeedHits(r, f, components)
+}
+
+// reportFeedHits turns list matches into findings. It is separate from loading
+// so it can be tested against a feed built in the test rather than one that has
+// to be signed first -- the signing key is not in this repository, and a check
+// that could only be exercised with it would not be exercised at all.
+func reportFeedHits(r *model.Report, f feed.Feed, components []feed.Component) {
+	// A feed whose entries cannot do what their author intended is a silent
+	// failure: a mistyped version never matches, a version constraint on the
+	// wrong kind is thrown away and the entry then matches everything. Neither
+	// produces an error during a scan, only a confident wrong answer, so the
+	// report says the list is not sound rather than quoting results from it as
+	// though they were.
+	if probs := f.Validate(); len(probs) > 0 {
+		ev := make([]string, 0, len(probs))
+		for _, p := range probs {
+			ev = append(ev, p.Error())
+		}
+		r.Add(model.Finding{
+			ID:       "SUP-033",
+			Title:    fmt.Sprintf("The known-bad list has %d entry problem(s)", len(probs)),
+			Severity: model.Low,
+			Advisory: true,
+			Detail: "Some entries on the list cannot match what they were written to match, so this " +
+				"check did not cover everything it appears to. An entry with a mistyped version matches " +
+				"nothing; an entry carrying version constraints its kind cannot compare matches every " +
+				"install instead of the affected ones.\n" +
+				"List version " + f.Version + ", " + f.Origin + ".",
+			Evidence: ev,
+			Fix:      "Refresh the list, or report this to whoever publishes it:",
+			Command:  selfCommand("--update-feed"),
+		})
+	}
 
 	hits := f.Match(components)
+	var confirmed int
 	for _, h := range hits {
 		detail := h.Entry.Detail
 		if detail != "" {
@@ -156,6 +191,28 @@ func reportKnownBad(r *model.Report, inv supply.Inventory, feedPath string) {
 		}
 		detail += "Matched because " + h.Why + ".\nPath: " + h.Component.Path +
 			"\nList entry: " + h.Entry.ID + " (" + f.Version + ")"
+
+		// A name match whose version could not be compared is not an
+		// accusation. Reporting it at the entry's own severity would state as
+		// fact the half that was never established.
+		if h.Unresolved {
+			r.Add(model.Finding{
+				ID:       "SUP-034",
+				Title:    "Cannot tell whether " + h.Component.Name + " is an affected version",
+				Severity: model.Medium,
+				Detail: detail + "\n\nThis is not a finding that the component is malicious, and not one " +
+					"that it is safe. The published advisory names specific versions; the version this " +
+					"install reports is not in a form that can be compared against them, so the question " +
+					"is open and a person has to close it.",
+				Artifacts: []string{h.Component.ID},
+				Fix: "Check the installed version against the advisory yourself. If it is affected, remove " +
+					"the component and rotate every credential that was reachable from this machine.",
+				Ref: h.Entry.Ref,
+			})
+			continue
+		}
+
+		confirmed++
 		r.Add(model.Finding{
 			ID:        "SUP-030",
 			Title:     h.Entry.Title,

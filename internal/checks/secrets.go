@@ -226,8 +226,10 @@ func Secrets(r *model.Report, scope SecretScope) {
 				"worse in a different way: nothing exports them, so nothing rotates them either, and they are " +
 				"copied by every backup, sync client and screen share.",
 			Evidence: evidenceFor(cfgHits),
-			Fix:      "Rotate each key at its provider first; restricting the file does not undo a key that already leaked. Then move them into your OS keychain or a secrets manager, and make sure .env is in .gitignore.",
-			Command:  restrictCommand(cfgHits),
+			Fix: "Rotate each key at its provider first; restricting the file does not undo a key that already leaked. " +
+				"Then move them into your OS keychain or a secrets manager, and make sure .env is in .gitignore." +
+				remainingFilesNote(cfgHits),
+			Command: restrictCommand(cfgHits),
 		}
 		// Where the search reached belongs on the finding that found
 		// something, not only on the one that found nothing. A list of seven
@@ -302,6 +304,43 @@ func restrictCommand(hits []hit) string {
 		return ""
 	}
 	return advice.RestrictFile(hits[0].file)
+}
+
+// remainingFilesNote says that the copyable command covers one file out of
+// several.
+//
+// The command is one line on purpose -- a wall of them is not copyable -- but a
+// finding headed "2 API key(s)" followed by a single command reads as the whole
+// fix, and a reader who runs it has secured half of what was found without
+// anything telling them so. The evidence list says where the keys are; this
+// says how much of the work the button does.
+func remainingFilesNote(hits []hit) string {
+	files := distinctFiles(hits)
+	if len(files) < 2 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n\nThe command below restricts one file. %d file(s) hold keys, so run the "+
+		"equivalent for each of the others too:", len(files))
+	for _, f := range files[1:] {
+		b.WriteString("\n  " + advice.RestrictFile(f))
+	}
+	return b.String()
+}
+
+// distinctFiles lists the files hits came from, first-seen order preserved so
+// the head of the list is the file restrictCommand names.
+func distinctFiles(hits []hit) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, h := range hits {
+		if seen[h.file] {
+			continue
+		}
+		seen[h.file] = true
+		out = append(out, h.file)
+	}
+	return out
 }
 
 func evidenceFor(hits []hit) []string {

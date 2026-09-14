@@ -290,9 +290,25 @@ The update request carries nothing about your machine — no identifier, no quer
 string, no report of what is installed. Scans themselves never use the network,
 and `--feed PATH` runs from a file for air-gapped machines.
 
-The list ships with a handful of publicly documented entries. Its value is not
-the format, which is a weekend of work; it is keeping it current. That is the
-one part of this tool nobody can clone.
+Entries match a package name, a component directory name or a file digest. A
+package entry can name exact affected versions or a range, because most real
+compromises are not "this package is malicious" but "these releases of this
+otherwise ordinary package were backdoored" — `@lanyer640/mcp-runcommand-server`
+is a reverse shell from 1.0.6 onward and unremarkable before it. An entry with
+no version constraint covers every release, which is right for a package pulled
+from its registry and wrong for one that was briefly hijacked, so the loader
+checks that distinction and the report says so when the list cannot be trusted
+to make it.
+
+An unpinned launch spec (`npx -y pkg`) is reported against a version-constrained
+entry too: it fetches whatever the registry serves, so it can land on an
+affected release at any moment. And when an installed version cannot be compared
+against the entry at all, the report says that in those words rather than
+picking a side.
+
+The list ships with publicly documented entries, each citing its primary source.
+Its value is not the format, which is a weekend of work; it is keeping it
+current. That is the one part of this tool nobody can clone.
 
 ## 5. Malware hashes, offline
 
@@ -301,13 +317,39 @@ file. `aiexpose` can also compare every file in your AI stack, byte for byte,
 against a corpus of known malware hashes — with no network involved at any
 point.
 
+There are two ways to get the index, and both are one-offs.
+
+**Download the published one** from the
+[releases page](https://github.com/MC-kakadu/AIexpose/releases) — three files:
+`aiexpose-hashdb.bin`, `aiexpose-hashdb.manifest.json` and its `.sig`. Put them
+in one folder and run:
+
+```bash
+aiexpose --install-hashdb aiexpose-hashdb.bin
+```
+
+The Ed25519 signature and the SHA-256 digest are checked before anything is
+written, so an altered or half-finished download is refused rather than
+trusted. `aiexpose` does not fetch it for you — you download it with a browser,
+and the tool verifies it.
+
+**Or build it yourself** from a folder of
+[VirusShare](https://virusshare.com/hashes) MD5 lists, trusting nobody's copy
+but your own:
+
 ```bash
 aiexpose --build-hashdb ./virusHashDb   # once, about 20 seconds
 ```
 
-Point it at a folder of [VirusShare](https://virusshare.com/hashes) MD5 lists.
-It compiles them into one sorted index under `~/.aiexpose/hashdb.bin`; every
+Either way the result is one sorted index under `~/.aiexpose/hashdb.bin`; every
 scan from then on uses it automatically.
+
+> **Why isn't this in the repository?** It is about 255 MB, and GitHub refuses
+> any file over 100 MiB. It cannot honestly be made smaller either: 42 million
+> random 64-bit prefixes need roughly 40 bits each however they are encoded, and
+> a shorter prefix would mean a scan that hashes a few thousand files has a
+> percent-level chance of calling a clean one malware. A tool whose whole
+> discipline is not overstating what it found should not ship that trade.
 
 ```
 CRITICAL  ComfyUI custom node "some-node" contains a file that matches a known-malware hash
@@ -532,7 +574,7 @@ waiver cannot quietly become permanent.
 | **Malicious code** | Discord/Telegram exfiltration, browser credential and wallet theft, encoded payloads, tunnels, persistence |
 | **Unpinned MCP servers** | Servers launched via `npx -y pkg` or `pkg@latest`, which run whatever the registry serves today |
 | **Known-bad components** | Packages, node names and file digests on the signed known-bad list |
-| **Malware hashes** | Every hashed file against a local offline malware corpus, when you have built one |
+| **Malware hashes** | Every hashed file against a local offline malware corpus, once you have installed or built one |
 | **Model integrity** | Content-addressed model blobs verified against their own digests, and models pulled from unofficial registries |
 | **Risk coverage** | Each OWASP LLM Top 10 (2025) risk, with what this scan examined for it and what it cannot see |
 
@@ -551,9 +593,10 @@ be absurd for it to upload anything, so it does not.
   `127.0.0.1` only, and the router query is LAN multicast. The single exception
   is `--update-feed`, which you run deliberately: it is a plain GET for two
   static files and sends nothing about this machine.
-- **No telemetry, no account, no phone-home.** The malware hash index is built
-  from lists you download yourself; the tool never fetches them and never
-  reports what it matched.
+- **No telemetry, no account, no phone-home.** The malware hash index comes from
+  files you download yourself, with a browser; `--install-hashdb` only verifies
+  and installs what is already on your disk, and `--build-hashdb` compiles lists
+  you fetched. The tool downloads neither, and never reports what it matched.
 - **Credentials are masked** before they are written anywhere, including the
   JSON output.
 - **Your documents are not read unless you ask.** The default search covers your
@@ -615,7 +658,8 @@ aiexpose [flags]
   --no-feed          skip known-bad list matching
   --install-rules F  install detection rules from a signed file (no internet needed)
   --aibom PATH       write a CycloneDX 1.6 AI bill of materials
-  --build-hashdb DIR compile VirusShare .md5 lists into the offline malware index
+  --install-hashdb F verify a downloaded malware hash index and install it
+  --build-hashdb DIR compile VirusShare .md5 lists into that index yourself
   --hashdb PATH      where that index lives (default ~/.aiexpose/hashdb.bin)
   --hash-all         hash multi-gigabyte weights too (slow; off by default)
   --no-hashdb        skip malware hash matching
@@ -693,9 +737,17 @@ package or a malicious custom node, because those are Python source that no
 malware corpus indexes. That is what the known-bad list and the source
 indicators are for, and the three layers barely overlap.
 
-**The known-bad list is short.** Three publicly documented entries. The format
-took a weekend; keeping it current is the actual work, and it is the part that
-would benefit most from other people contributing.
+**The known-bad list is short.** Fourteen publicly documented entries, each with
+a primary source. The format took a weekend; keeping it current is the actual
+work, and it is the part that would benefit most from other people contributing.
+
+It is also narrower than the published record, on purpose. Plenty of documented
+AI supply-chain compromises are not on it — hijacked releases of `ultralytics`
+and `litellm`, malicious Hugging Face model repositories, backdoored editor
+extensions — because this scanner does not inventory Python libraries, model
+repositories or editor extensions. An entry for something the scanner never
+looks at would be a rule that can never fire, and a list padded with those reads
+as coverage while providing none.
 
 **One detection rule is pinned by tests, not all of them.** `STEAL-BROWSER` is
 fixed against 24 real true- and false-positive lines after it misfired on a

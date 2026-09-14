@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -36,7 +37,7 @@ const (
 	lockFileName   = "aiexpose.lock.json"
 
 	toolName = "aiexpose"
-	version  = "0.20.0"
+	version  = "0.22.2"
 )
 
 // pauseChoice is set while flags are parsed, because os.Exit skips defers and
@@ -72,41 +73,43 @@ func run() int {
 	}
 
 	var (
-		htmlPath     = flag.String("html", "", "write a self-contained HTML report to this path")
-		jsonOut      = flag.Bool("json", false, "print the report as JSON instead of text")
-		jsonPath     = flag.String("json-out", "", "write the JSON report to this path")
-		verbose      = flag.Bool("verbose", false, "include informational checks that passed")
-		noUPnP       = flag.Bool("no-upnp", false, "skip the router port-forwarding query")
-		noSecrets    = flag.Bool("no-secrets", false, "skip the plaintext credential scan")
-		noModels     = flag.Bool("no-models", false, "skip the model file format inventory")
-		noSupply     = flag.Bool("no-supply", false, "skip the supply chain inventory and drift check")
-		baseline     = flag.String("baseline", "", "path to the accepted-state baseline (default ~/.aiexpose/baseline.json)")
-		accept       = flag.Bool("accept", false, "record the current components as the new known-good baseline")
-		forceColor   = flag.Bool("color", false, "force ANSI colour output")
-		noColor      = flag.Bool("no-color", false, "disable ANSI colour output")
-		failOn       = flag.String("fail-on", "", "exit non-zero if any finding is at or above this severity (low|medium|high|critical)")
-		feedPath     = flag.String("feed", "", "use this signed known-bad component list instead of the cached one")
-		noFeed       = flag.Bool("no-feed", false, "skip matching against the known-bad component list")
-		updateFeed   = flag.Bool("update-feed", false, "download fresh detection rules and exit (the only command that uses the network)")
-		installRules = flag.String("install-rules", "", "install detection rules from a signed file and exit (works with no internet access)")
-		feedURL      = flag.String("feed-url", "", "where --update-feed downloads from")
-		buildHashDB  = flag.String("build-hashdb", "", "compile a folder of VirusShare .md5 hash lists into a local malware hash index and exit")
-		hashDBPath   = flag.String("hashdb", "", "path to the local malware hash index (default ~/.aiexpose/hashdb.bin)")
-		aibomPath    = flag.String("aibom", "", "write a CycloneDX 1.6 AI bill of materials to this path")
-		hashAll      = flag.Bool("hash-all", false, "hash every model file against the malware index, including multi-gigabyte weights (slow)")
-		noHashDB     = flag.Bool("no-hashdb", false, "skip matching installed files against the local malware hash index")
-		scanHistory  = flag.Bool("scan-history", false, "also search shell and PowerShell history for API keys (off by default: reading it is what an information stealer does, and endpoint protection blocks unsigned programs that do)")
-		noScanDocs   = flag.Bool("no-scan-docs", false, "never search the document folders, and do not ask")
-		scanDocs     = flag.Bool("scan-docs", false, "also search Desktop, Documents and Downloads for API keys written into notes and text files (off by default for the same reason as --scan-history)")
-		scanDirs     = flag.String("scan-dir", "", "also search these folders for API keys, separated by "+string(os.PathListSeparator)+" (for a work folder or a project directory outside your home folder)")
-		openReport   = flag.Bool("open", false, "open the HTML report even when no graphical session is detected (it opens on its own whenever one is)")
-		noOpen       = flag.Bool("no-open", false, "write the HTML report but never open it")
-		noHTML       = flag.Bool("no-html", false, "do not write the HTML report automatically (it is written whenever a person is watching)")
-		safeMode     = flag.Bool("safe-mode", false, "run only checks that start no other programs and touch no credential stores; use this if security software blocks a normal scan")
-		pause        = flag.Bool("pause", false, "wait for Enter before exiting (automatic when launched by double-click)")
-		noPause      = flag.Bool("no-pause", false, "never wait for Enter before exiting")
-		showVer      = flag.Bool("version", false, "print the version, build profile and this executable's own SHA-256")
-		verifyPath   = flag.String("verify", "", "check this executable against a published SHA256SUMS file and exit")
+		htmlPath      = flag.String("html", "", "write a self-contained HTML report to this path")
+		jsonOut       = flag.Bool("json", false, "print the report as JSON instead of text")
+		jsonPath      = flag.String("json-out", "", "write the JSON report to this path")
+		verbose       = flag.Bool("verbose", false, "include informational checks that passed")
+		noUPnP        = flag.Bool("no-upnp", false, "skip the router port-forwarding query")
+		noSecrets     = flag.Bool("no-secrets", false, "skip the plaintext credential scan")
+		noModels      = flag.Bool("no-models", false, "skip the model file format inventory")
+		noSupply      = flag.Bool("no-supply", false, "skip the supply chain inventory and drift check")
+		baseline      = flag.String("baseline", "", "path to the accepted-state baseline (default ~/.aiexpose/baseline.json)")
+		accept        = flag.Bool("accept", false, "record the current components as the new known-good baseline")
+		forceColor    = flag.Bool("color", false, "force ANSI colour output")
+		noColor       = flag.Bool("no-color", false, "disable ANSI colour output")
+		failOn        = flag.String("fail-on", "", "exit non-zero if any finding is at or above this severity (low|medium|high|critical)")
+		feedPath      = flag.String("feed", "", "use this signed known-bad component list instead of the cached one")
+		noFeed        = flag.Bool("no-feed", false, "skip matching against the known-bad component list")
+		updateFeed    = flag.Bool("update-feed", false, "download fresh detection rules and exit (the only command that uses the network)")
+		installRules  = flag.String("install-rules", "", "install detection rules from a signed file and exit (works with no internet access)")
+		feedURL       = flag.String("feed-url", "", "where --update-feed downloads from")
+		buildHashDB   = flag.String("build-hashdb", "", "compile a folder of VirusShare .md5 hash lists into a local malware hash index and exit")
+		installHashDB = flag.String("install-hashdb", "", "verify a downloaded malware hash index and install it, then exit (works with no internet access)")
+		signHashDB    = flag.String("sign-hashdb", "", "write the release manifest for a built index and exit (maintainers only)")
+		hashDBPath    = flag.String("hashdb", "", "path to the local malware hash index (default ~/.aiexpose/hashdb.bin)")
+		aibomPath     = flag.String("aibom", "", "write a CycloneDX 1.6 AI bill of materials to this path")
+		hashAll       = flag.Bool("hash-all", false, "hash every model file against the malware index, including multi-gigabyte weights (slow)")
+		noHashDB      = flag.Bool("no-hashdb", false, "skip matching installed files against the local malware hash index")
+		scanHistory   = flag.Bool("scan-history", false, "also search shell and PowerShell history for API keys (off by default: reading it is what an information stealer does, and endpoint protection blocks unsigned programs that do)")
+		noScanDocs    = flag.Bool("no-scan-docs", false, "never search the document folders, and do not ask")
+		scanDocs      = flag.Bool("scan-docs", false, "also search Desktop, Documents and Downloads for API keys written into notes and text files (off by default for the same reason as --scan-history)")
+		scanDirs      = flag.String("scan-dir", "", "also search these folders for API keys, separated by "+string(os.PathListSeparator)+" (for a work folder or a project directory outside your home folder)")
+		openReport    = flag.Bool("open", false, "open the HTML report even when no graphical session is detected (it opens on its own whenever one is)")
+		noOpen        = flag.Bool("no-open", false, "write the HTML report but never open it")
+		noHTML        = flag.Bool("no-html", false, "do not write the HTML report automatically (it is written whenever a person is watching)")
+		safeMode      = flag.Bool("safe-mode", false, "run only checks that start no other programs and touch no credential stores; use this if security software blocks a normal scan")
+		pause         = flag.Bool("pause", false, "wait for Enter before exiting (automatic when launched by double-click)")
+		noPause       = flag.Bool("no-pause", false, "never wait for Enter before exiting")
+		showVer       = flag.Bool("version", false, "print the version, build profile and this executable's own SHA-256")
+		verifyPath    = flag.String("verify", "", "check this executable against a published SHA256SUMS file and exit")
 	)
 	flag.Usage = usage
 	flag.Parse()
@@ -134,6 +137,12 @@ func run() int {
 		return verifySelf(*verifyPath)
 	}
 
+	if *installHashDB != "" {
+		return runInstallHashDB(*installHashDB, *hashDBPath)
+	}
+	if *signHashDB != "" {
+		return runSignHashDB(*signHashDB)
+	}
 	if *buildHashDB != "" {
 		return runBuildHashDB(*buildHashDB, *hashDBPath)
 	}
@@ -675,13 +684,14 @@ Examples:
   %s --safe-mode              skip everything security software tends to block
   %s --install-rules FILE     install detection rules from a signed file
   %s --aibom bom.cdx.json     write a CycloneDX AI bill of materials
-  %s --build-hashdb DIR       build the offline malware hash index, once
+  %s --install-hashdb FILE    verify and install a downloaded malware hash index
+  %s --build-hashdb DIR       build that index yourself from VirusShare lists
   %s ci --write-lock          record a repository's reviewed components
   %s ci --sarif out.sarif     gate a repository in CI
 
 aiexpose reads. It never changes this machine: every finding names the exact
 step that resolves it, and you run it.
-`, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName)
+`, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName, toolName)
 }
 
 // splitPaths turns the --scan-dir value into folders. The platform's own list
@@ -698,4 +708,63 @@ func splitPaths(v string) []string {
 		}
 	}
 	return out
+}
+
+// runInstallHashDB verifies a downloaded malware hash index and puts it where
+// scans look for it.
+//
+// The index is about 255 MB, which is why it is a release asset and not part
+// of the repository. That makes it a file arriving from somewhere else, and a
+// file that decides which of your files get called malware is exactly the kind
+// of input that has to be checked before it is trusted: a tampered index can
+// accuse a clean file, and more quietly, it can stay silent about a dirty one.
+// So the signature is checked first, the digest second, and the format third,
+// and nothing is written until all three pass.
+//
+// Nothing is downloaded here. The user fetches the files with a browser; this
+// command only verifies and installs.
+func runInstallHashDB(srcPath, destPath string) int {
+	m, err := hashdb.Install(srcPath, destPath, feed.Verify)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "aiexpose:", err)
+		if errors.Is(err, hashdb.ErrManifestMissing) {
+			fmt.Fprintln(os.Stderr, "\nThe index is published as three files, and all three are needed:")
+			fmt.Fprintln(os.Stderr, "  aiexpose-hashdb.bin            the index")
+			fmt.Fprintln(os.Stderr, "  aiexpose-hashdb.manifest.json  what it is, and its digest")
+			fmt.Fprintln(os.Stderr, "  aiexpose-hashdb.manifest.json.sig  the signature over that")
+			fmt.Fprintln(os.Stderr, "\nDownload all three into the same folder and run this again.")
+		}
+		if errors.Is(err, hashdb.ErrDigestMismatch) {
+			fmt.Fprintln(os.Stderr, "\nThe download is incomplete or has been altered. Fetch it again.")
+			fmt.Fprintln(os.Stderr, "Nothing was installed.")
+		}
+		return 2
+	}
+
+	dest := destPath
+	if dest == "" {
+		dest = hashdb.DefaultPath()
+	}
+	fmt.Printf("Verified and installed %s hashes from %s.\n", commas(m.Meta.Hashes), m.Meta.Source)
+	fmt.Printf("Index: %s (%.0f MB)\n", dest, float64(m.Bytes)/(1<<20))
+	fmt.Println("\nEvery scan from now on checks installed files against it automatically.")
+	fmt.Println("Use --no-hashdb to skip it, or delete the index file to turn it off for good.")
+	return 0
+}
+
+// runSignHashDB writes the manifest a maintainer signs before publishing an
+// index. It is a release step; a normal user never runs it.
+func runSignHashDB(indexPath string) int {
+	m, err := hashdb.WriteManifest(indexPath, "")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "aiexpose:", err)
+		return 2
+	}
+	out := hashdb.ManifestPath(indexPath)
+	fmt.Printf("Wrote %s\n", out)
+	fmt.Printf("  index   %s (%d bytes)\n", m.Index, m.Bytes)
+	fmt.Printf("  sha256  %s\n", m.SHA256)
+	fmt.Printf("  corpus  %s, %s hashes\n", m.Meta.Source, commas(m.Meta.Hashes))
+	fmt.Printf("\nSign it before publishing:\n  feedsign -key <private key file> -in %s\n", out)
+	return 0
 }
