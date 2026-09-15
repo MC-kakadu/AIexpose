@@ -766,10 +766,17 @@ repositories or editor extensions. An entry for something the scanner never
 looks at would be a rule that can never fire, and a list padded with those reads
 as coverage while providing none.
 
-**One detection rule is pinned by tests, not all of them.** `STEAL-BROWSER` is
-fixed against 24 real true- and false-positive lines after it misfired on a
-legitimate node. The other ten patterns have not been validated against a corpus
-of real code at that level.
+**The detection patterns are barely tested, and this README used to overstate
+it.** Every shipped pattern is now asserted to compile, and the loaded rule
+count is asserted to equal the shipped count — so a typo'd regex can no longer
+be silently skipped while the report still claims eleven rules. That is the
+floor, not validation.
+
+Beyond compiling, exactly one of the eleven has a true-positive and a
+negative case: `EXFIL-DISCORD`, against one webhook line and one benign
+eight-line node. The other ten — `STEAL-BROWSER` included — have never been run
+against a corpus of real code. Until they are, treat an indicator finding as a
+prompt to go and look, not as a verdict.
 
 **Downloads are unsigned.** No Authenticode certificate, no macOS notarization.
 SmartScreen and Gatekeeper will say so. Building from source with
@@ -814,7 +821,7 @@ In rough order of how much difference each would make.
 - **Digest entries in the known-bad list, from real samples.** An AI-specific
   corpus is the one gap the general malware index cannot fill.
 - **Validating the remaining detection patterns** against real codebases, the
-  way `STEAL-BROWSER` was.
+  way `EXFIL-DISCORD` is, and further.
 - Ollama Modelfiles and Python virtualenvs in the drift inventory
 - Security questionnaire answers generated from the coverage map and inventory
 - CSA AIUC-1 control mapping alongside OWASP and ATLAS
